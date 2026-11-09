@@ -14,3 +14,9 @@
 构建有两条非阻断提示：Manifold JS 包含仅 Node 分支使用的 `node:module`（Vite 外部化；生产 Worker 已实际通过）；主 JS 包约 932 kB（gzip 259 kB），后续可拆分导入器/导出器以优化首屏。没有隐藏或屏蔽这些提示。
 
 GitHub 发布状态应以实际推送和 Actions/Pages 运行结果为准。本地测试通过不等于网站已发布。云环境草稿工具返回 INVALID_ARGUMENT，无法确认云配置保存；恢复命令另见 CLOUD_SETUP.md。
+
+## GitHub 执行结果（2026-11-09）
+
+代码已推送至 `J-Ruan/ViewForge` 的 main 分支。首次 Actions 在 `ubuntu-latest` 的 Playwright 系统依赖安装步骤失败；固定到受支持的 Ubuntu 24.04 后，[第二次运行](https://github.com/J-Ruan/ViewForge/actions/runs/42565375087) 的 **validate 作业成功**，完成类型检查、26 项单元/几何测试、8 项生产子路径 E2E 和构建，上传 `browser-results` 与 `github-pages` 两个产物。
+
+**deploy 作业失败，网站尚未发布**：GitHub Pages 返回 `Failed to create deployment (status: 404)`，明确提示未启用 Pages。需要仓库管理员在 [Settings → Pages](https://github.com/J-Ruan/ViewForge/settings/pages) 将 Source 设为 **GitHub Actions**，然后重跑工作流。当前环境的 Git 推送权限正常，但 GitHub API 域名被出站策略拒绝，且未提供共享浏览器控制工具，因此无法代为完成该仓库管理操作。不能将本地或 CI 构建通过写成线上发布成功。
