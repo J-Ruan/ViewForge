@@ -25,7 +25,7 @@ jobs:
       - run: npm run build
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
-      - run: npm run test:e2e -- --reporter=line,json
+      - run: npm run test:e2e -- --reporter=line,json,github
         env:
           TEST_BASE_PATH: /${{ github.event.repository.name }}/
           PLAYWRIGHT_PREVIEW: "1"
