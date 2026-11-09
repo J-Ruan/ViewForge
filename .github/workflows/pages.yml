@@ -25,10 +25,14 @@ jobs:
       - run: npm run build
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
-      - run: npm run test:e2e
+      - run: npm run test:e2e -- --reporter=line,json
         env:
           TEST_BASE_PATH: /${{ github.event.repository.name }}/
           PLAYWRIGHT_PREVIEW: "1"
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/results.json
+      - name: Summarize browser validation
+        if: always()
+        run: node scripts/summarize-tests.mjs >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
