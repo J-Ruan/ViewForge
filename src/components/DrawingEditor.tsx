@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   Upload,
@@ -13,14 +13,17 @@ import {
 import type { Contour, Drawing, Point, ViewKind } from "../types";
 import { labels, uid } from "../types";
 import { contour } from "../examples";
+import { RecognitionPanel } from "./RecognitionPanel";
 import { importDrawing } from "../io/import";
 export function DrawingEditor({
   drawing: d,
   onChange,
   index,
   onError,
+  unit,
 }: {
   drawing: Drawing;
+  unit: "mm" | "cm";
   onChange: (d: Drawing | ((current: Drawing) => Drawing)) => void;
   index: number;
   onError: (m: string) => void;
@@ -39,7 +42,16 @@ export function DrawingEditor({
     [draft, setDraft] = useState<Point[]>([]),
     [zoom, setZoom] = useState(1),
     [threshold, setThreshold] = useState(160),
-    [loading, setLoading] = useState(false);
+    [loading, setLoading] = useState(false),
+    [advanced, setAdvanced] = useState(false),
+    [showSource, setShowSource] = useState(false);
+  const job = useRef(0);
+  useEffect(
+    () => () => {
+      job.current++;
+    },
+    [],
+  );
   const patch = (partial: Partial<Drawing>) =>
     onChange((current) => ({ ...current, ...partial, confirmed: false }));
   const at = (e: React.PointerEvent | React.MouseEvent): Point => {
@@ -62,9 +74,15 @@ export function DrawingEditor({
     setMode("select");
   };
   const upload = async (f: File) => {
+    const id = ++job.current;
     setLoading(true);
     try {
-      const parsed = await importDrawing(f, threshold);
+      const parsed = await importDrawing(f, threshold, {
+        unit,
+        width: 0,
+        height: 0,
+      });
+      if (id !== job.current) return;
       onChange((current) => ({
         ...current,
         ...parsed,
@@ -73,15 +91,20 @@ export function DrawingEditor({
         confirmed: false,
       }));
       setSelected(null);
+      setAdvanced(false);
+      setShowSource(false);
     } catch (e) {
-      onError((e as Error).message);
+      if (id === job.current) onError((e as Error).message);
     } finally {
-      setLoading(false);
+      if (id === job.current) setLoading(false);
     }
   };
-  const ratio = Math.min(2, Math.max(0.5, d.height / d.width));
+  const ratio = Math.min(2, Math.max(0.5, d.height / d.width || 1));
   return (
-    <section className="drawing-card">
+    <section
+      className={`drawing-card ${d.analysis && !advanced ? "recognition-mode" : ""}`}
+      data-status={d.analysis?.status}
+    >
       <header>
         <div>
           <span className="number">0{index + 1}</span>
@@ -104,7 +127,50 @@ export function DrawingEditor({
           {d.confirmed ? "已校准" : "待确认"}
         </span>
       </header>
-      <div className="drawing-surface" style={{ aspectRatio: "1.6" }}>
+      {d.analysis && showSource && d.sourceData?.startsWith("data:image/") && (
+        <div className="recognition-source">
+          <svg
+            viewBox={`0 0 ${d.analysis.imageSize[0]} ${d.analysis.imageSize[1]}`}
+            aria-label="原图识别依据"
+          >
+            <image
+              href={d.sourceData}
+              width={d.analysis.imageSize[0]}
+              height={d.analysis.imageSize[1]}
+            />
+            <path
+              d={
+                d.analysis.rawOutline
+                  .map((p, i) => `${i ? "L" : "M"}${p[0]} ${p[1]}`)
+                  .join(" ") + "Z"
+              }
+              fill="#34a07515"
+              stroke="#249c73"
+              strokeWidth="4"
+            />
+            {d.analysis.dimensions.map((r) => (
+              <rect
+                key={r.id}
+                x={r.labelBox[0] - 4}
+                y={r.labelBox[1] - 4}
+                width={r.labelBox[2] + 8}
+                height={r.labelBox[3] + 8}
+                fill="none"
+                stroke={r.accepted ? "#3479ed" : "#c5cad2"}
+                strokeWidth="3"
+              />
+            ))}
+          </svg>
+          <span>绿：零件边界 · 蓝框：关联尺寸</span>
+        </div>
+      )}
+      <div
+        className="drawing-surface"
+        style={{
+          aspectRatio: "1.6",
+          display: showSource && d.analysis ? "none" : undefined,
+        }}
+      >
         <svg
           ref={svg}
           viewBox={`${0.5 - 0.62 / zoom} ${0.5 - 0.62 / zoom} ${1.24 / zoom} ${1.24 / zoom}`}
@@ -322,6 +388,22 @@ export function DrawingEditor({
           e.target.value = "";
         }}
       />
+      {loading && (
+        <div className="recognition-loading">正在本地提取轮廓与读取尺寸…</div>
+      )}
+      <RecognitionPanel
+        drawing={d}
+        unit={unit}
+        onChange={onChange}
+        advanced={advanced}
+        onAdvanced={() => {
+          setAdvanced(!advanced);
+          setShowSource(false);
+        }}
+        showSource={showSource}
+        onSource={() => setShowSource(!showSource)}
+        onUpload={() => file.current?.click()}
+      />
       {mode === "draw" && (
         <div className="edit-strip">
           点按画布添加顶点{" "}
@@ -438,8 +520,31 @@ export function DrawingEditor({
             type="number"
             min=".01"
             step="1"
-            value={d.width}
-            onChange={(e) => patch({ width: +e.target.value })}
+            value={d.width || ""}
+            placeholder="实际宽度"
+            onChange={(e) => {
+              const width = +e.target.value;
+              const a = d.analysis;
+              if (
+                a &&
+                a.heightSource !== "dimension" &&
+                (d.height === 0 || a.heightSource === "scale")
+              )
+                patch({
+                  width,
+                  height:
+                    Math.round(
+                      ((width * a.objectBox[3]) / a.objectBox[2]) * 1000,
+                    ) / 1000,
+                  analysis: {
+                    ...a,
+                    status: "review",
+                    widthSource: "manual",
+                    heightSource: "scale",
+                  },
+                });
+              else patch({ width });
+            }}
           />
         </label>
         <span>×</span>
@@ -450,7 +555,8 @@ export function DrawingEditor({
             type="number"
             min=".01"
             step="1"
-            value={d.height}
+            value={d.height || ""}
+            placeholder="实际高度"
             onChange={(e) => patch({ height: +e.target.value })}
           />
         </label>
@@ -529,7 +635,12 @@ export function DrawingEditor({
       <button
         className={`confirm-button ${d.confirmed ? "confirmed" : ""}`}
         disabled={
-          !d.contours.some((c) => c.selected && c.role === "region") || loading
+          !!d.analysis?.dimensionConflict ||
+          d.width <= 0 ||
+          d.height <= 0 ||
+          !!d.analysis?.alternatives.length ||
+          !d.contours.some((c) => c.selected && c.role === "region") ||
+          loading
         }
         onClick={() => onChange({ ...d, confirmed: !d.confirmed })}
       >

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254">
+<rect width="1254" height="1254" fill="white"/>
+<g fill="none" stroke="black"><rect x="450" y="90" width="355" height="112" stroke-width="5"/><path stroke-width="8" d="M171 992V437H470V618H772V805H1072V992Z"/>
+<g stroke-width="2.5"><path d="M168 328V428 M470 328V428 M771 328V428 M1072 328V794 M168 354H1072 M65 436H161 M65 993H161 M94 437V992 M1086 436H1182 M1086 618H1182 M1086 804H1182 M1086 992H1182 M1150 437V992 M168 1004V1100 M1072 1004V1100 M168 1072H1072"/></g></g>
+<g fill="black"><path d="M168 354l30 -10v20Z M470 354l-30 -10v20Z M470 354l30 -10v20Z M771 354l-30 -10v20Z M771 354l30 -10v20Z M1072 354l-30 -10v20Z M94 437l-10 30h20Z M94 992l-10 -30h20Z M1150 437l-10 30h20Z M1150 618l-10 -30h20Z M1150 618l-10 30h20Z M1150 804l-10 -30h20Z M1150 804l-10 30h20Z M1150 992l-10 -30h20Z M168 1072l30 -10v20Z M1072 1072l-30 -10v20Z"/></g>
+<g fill="black" font-family="Arial" font-size="60" text-anchor="middle"><text x="628" y="170">正视图</text></g>
+<g fill="black" font-family="Arial" font-size="60" text-anchor="middle"><text x="320" y="333">30</text><text x="620" y="333">30</text><text x="921" y="333">30</text><text x="47" y="737">60</text><text x="1208" y="548">20</text><text x="1208" y="734">20</text><text x="1208" y="918">20</text><text x="620" y="1133">90</text></g></svg>

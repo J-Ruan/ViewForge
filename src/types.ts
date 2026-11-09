@@ -8,6 +8,33 @@ export interface Contour {
   role: Role;
   selected: boolean;
 }
+export interface DimensionReading {
+  id: string;
+  text: string;
+  value: number;
+  axis: "u" | "v";
+  start: number;
+  end: number;
+  labelBox: [number, number, number, number];
+  score: number;
+  unit?: "mm" | "cm";
+  source: "template" | "vector" | "dxf" | "manual";
+  accepted: boolean;
+}
+export interface DrawingAnalysis {
+  dimensionConflict?: boolean;
+  method: "raster" | "svg" | "dxf";
+  status: "ready" | "review" | "needs-size";
+  imageSize: [number, number];
+  objectBox: [number, number, number, number];
+  rawOutline: Point[];
+  dimensions: DimensionReading[];
+  pixelUncertainty: number;
+  alternatives: Point[][];
+  notes: string[];
+  widthSource: "dimension" | "scale" | "manual";
+  heightSource: "dimension" | "scale" | "manual";
+}
 export interface Drawing {
   kind: ViewKind;
   contours: Contour[];
@@ -17,6 +44,7 @@ export interface Drawing {
   offset: Point;
   mirror: boolean;
   confirmed: boolean;
+  analysis?: DrawingAnalysis;
   sourceName?: string;
   sourceData?: string;
   warnings: string[];
@@ -44,6 +72,7 @@ export interface Project {
 export interface ProjectionCheck {
   kind: ViewKind;
   iou: number;
+  withinScanTolerance?: boolean;
   input: Point[][];
   projected: Point[][];
   missing: Point[][];
@@ -57,6 +86,7 @@ export interface ModelResult {
   checks: ProjectionCheck[];
   baseChecks: ProjectionCheck[];
   triangles: number;
+  warnings?: string[];
 }
 export const labels: Record<ViewKind, string> = {
   front: "正视图",

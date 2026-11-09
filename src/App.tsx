@@ -53,6 +53,7 @@ function App() {
     [exportMenu, setExportMenu] = useState(false),
     [generation, setGeneration] = useState(1),
     [validation, setValidation] = useState(false);
+  const [projectSession, setProjectSession] = useState(0);
   const file = useRef<HTMLInputElement>(null),
     auto = useRef(true),
     toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -68,6 +69,7 @@ function App() {
       future: [],
     }));
   const replace = (p: Project) => {
+    setProjectSession((s) => s + 1);
     auto.current = p.views.every((v) => v.confirmed);
     setTimeline({ past: [], current: p, future: [] });
     setModel(null);
@@ -292,7 +294,8 @@ function App() {
           <div className="drawings-scroll">
             {project.views.map((d, i) => (
               <DrawingEditor
-                key={i}
+                key={`${projectSession}-${i}`}
+                unit={project.unit}
                 index={i}
                 drawing={d}
                 onError={setError}
@@ -308,9 +311,9 @@ function App() {
             <div className="input-tip">
               <ShieldCheck size={15} />
               <p>
-                图纸仅保存在你的设备中。
+                自动分离零件轮廓与尺寸标注。
                 <br />
-                尺寸线与隐藏线请标记为参考信息。
+                核对读取尺寸后，一键生成候选实体。
               </p>
             </div>
           </div>
@@ -350,6 +353,9 @@ function App() {
               </span>
             </div>
           </div>
+          {model?.warnings?.length ? (
+            <div className="scan-notice">{model.warnings.join(" ")}</div>
+          ) : null}
           {error && (
             <div className="error-banner" role="alert">
               <strong>需要检查</strong>
@@ -523,7 +529,7 @@ function App() {
               </h3>
               {project.views.map((v, i) => {
                 const c = model?.checks[i],
-                  ok = c && c.iou >= 0.999;
+                  ok = c && (c.iou >= 0.999 || c.withinScanTolerance);
                 return (
                   <div className="check-row" key={i}>
                     <span>{labels[v.kind]}</span>
@@ -563,7 +569,7 @@ function App() {
           <span className="dot" /> 所有计算均在浏览器本地执行
         </span>
         <span>
-          世界坐标 · X 宽 / Y 深 / Z 高 <i /> ViewForge 0.1
+          世界坐标 · X 宽 / Y 深 / Z 高 <i /> ViewForge 0.2
         </span>
       </footer>
       <nav className="mobile-tabs">
@@ -723,15 +729,15 @@ function App() {
               <div className="help-content">
                 <p>
                   <strong>01 / 输入与校准</strong>
-                  上传两个视图，检查区域与内孔，移除尺寸线。尺寸以归一化图纸边界为基准；必要时设置偏移、镜像与侧视方向，然后分别确认。
+                  上传两个视图，自动分离零件与外部标注，读取尺寸并校准。请核对尺寸与单位；存疑读数可在“查看与修正”中修改或取消采用，再分别确认。
                 </p>
                 <p>
                   <strong>02 / 编辑轮廓</strong>
-                  点选轮廓后拖动顶点或线段，双击边添加顶点。“画笔”手动补绘区域；水平、垂直按钮修正选中顶点之后的边。位图识别的区域默认不选中，必须检查后勾选。
+                  点选轮廓后拖动顶点或线段，双击边添加顶点。“画笔”手动补绘区域；水平、垂直按钮修正选中顶点之后的边。识别出的零件默认已选中，只有需要修改轮廓时才打开高级编辑。
                 </p>
                 <p>
                   <strong>03 / 生成与修正</strong>
-                  沿法线拉伸两个平面区域，再求布尔交集。交集必须完整投影回输入轮廓，否则停止生成。特征切除只由用户定义。
+                  沿法线拉伸两个平面区域，再求布尔交集。投影检查区分像素误差与真实冲突；真实尺寸冲突会提示具体公共轴及两张图的尺寸。特征切除只由用户定义。
                 </p>
                 <p>
                   <strong>04 / 检查与导出</strong>IoU
@@ -841,8 +847,7 @@ function App() {
               <span>橙：多出</span>
             </p>
             <div className="notice">
-              基础候选已满足两个投影约束（生成门槛 IoU ≥
-              99.9%）。当前结果包含人工特征。内部棱边、隐藏线与不确定结构均未验证。
+              基础候选已通过投影检查；轻微扫描差异按像素边界容差单独标记。当前结果包含人工特征时可能改变投影。内部棱边、隐藏线与不确定结构均未验证。
             </div>
           </section>
         </div>

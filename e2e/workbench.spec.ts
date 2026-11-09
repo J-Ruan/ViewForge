@@ -195,7 +195,7 @@ test("rejects unsafe SVG, unsupported DXF, and conflicting views", async ({
   await tab(page, "三维模型", isMobile);
   await expect(page.getByRole("alert")).toContainText("冲突");
 });
-test("raster pipeline requires explicit region selection", async ({
+test("raster selects the object automatically and asks only for missing size", async ({
   page,
   isMobile,
 }) => {
@@ -219,14 +219,12 @@ test("raster pipeline requires explicit region selection", async ({
     buffer: Buffer.from(data, "base64"),
   });
   await expect(page.locator(".drawing-card").first()).toContainText(
-    "0 个已选区域",
+    "已提取零件轮廓",
   );
-  await page
-    .locator(".drawing-card")
-    .first()
-    .getByText("检查区域", { exact: true })
-    .click();
-  await page.getByLabel("视图 1 区域 1", { exact: true }).check();
+  await expect(page.locator(".drawing-card").first()).toContainText(
+    "未读到可靠尺寸",
+  );
+  await page.getByLabel("视图 1 宽度", { exact: true }).fill("80");
   await expect(
     page.getByRole("button", { name: "确认轮廓与尺寸", exact: true }),
   ).toBeEnabled();
@@ -269,6 +267,8 @@ test("manual contour drawing and vertex dragging change actual solid volume", as
     mimeType: "image/svg+xml",
     buffer: svg(80, 50),
   });
+  await page.getByLabel("视图 2 宽度", { exact: true }).fill("80");
+  await page.getByLabel("视图 2 高度", { exact: true }).fill("50");
   await page
     .getByRole("button", { name: "确认轮廓与尺寸", exact: true })
     .first()

@@ -38,7 +38,9 @@ export function deserialize(text: string): Project {
       !Array.isArray(d.offset) ||
       d.offset.length !== 2 ||
       !d.offset.every(Number.isFinite) ||
-      ![d.width, d.height].every((v) => Number.isFinite(v) && v > 0) ||
+      ![d.width, d.height].every(
+        (v) => Number.isFinite(v) && (d.confirmed ? v > 0 : v >= 0),
+      ) ||
       typeof d.confirmed !== "boolean" ||
       typeof d.mirror !== "boolean" ||
       !Array.isArray(d.warnings) ||
@@ -47,6 +49,64 @@ export function deserialize(text: string): Project {
       (d.sourceName !== undefined && typeof d.sourceName !== "string")
     )
       throw new Error("视图参数无效。");
+    if (d.analysis) {
+      const a = d.analysis,
+        points = (v: unknown): boolean =>
+          Array.isArray(v) &&
+          v.length <= 1500 &&
+          v.every(
+            (p) =>
+              Array.isArray(p) &&
+              p.length === 2 &&
+              p.every(
+                (n) =>
+                  typeof n === "number" &&
+                  Number.isFinite(n) &&
+                  Math.abs(n) < 1e6,
+              ),
+          );
+      if (
+        (a.dimensionConflict !== undefined &&
+          typeof a.dimensionConflict !== "boolean") ||
+        !["raster", "svg", "dxf"].includes(a.method) ||
+        !["ready", "review", "needs-size"].includes(a.status) ||
+        !Array.isArray(a.imageSize) ||
+        a.imageSize.length !== 2 ||
+        !a.imageSize.every((n) => Number.isFinite(n) && n > 0) ||
+        !Array.isArray(a.objectBox) ||
+        a.objectBox.length !== 4 ||
+        !a.objectBox.every(Number.isFinite) ||
+        a.objectBox[2] <= 0 ||
+        a.objectBox[3] <= 0 ||
+        !points(a.rawOutline) ||
+        !Number.isFinite(a.pixelUncertainty) ||
+        a.pixelUncertainty < 0 ||
+        a.pixelUncertainty > 100 ||
+        !Array.isArray(a.alternatives) ||
+        a.alternatives.length > 12 ||
+        !a.alternatives.every(points) ||
+        !Array.isArray(a.notes) ||
+        !a.notes.every((n) => typeof n === "string") ||
+        !Array.isArray(a.dimensions) ||
+        a.dimensions.length > 128 ||
+        !a.dimensions.every(
+          (r) =>
+            r &&
+            typeof r.id === "string" &&
+            typeof r.text === "string" &&
+            ["u", "v"].includes(r.axis) &&
+            [r.value, r.start, r.end, r.score].every(Number.isFinite) &&
+            Array.isArray(r.labelBox) &&
+            r.labelBox.length === 4 &&
+            r.labelBox.every(Number.isFinite) &&
+            typeof r.accepted === "boolean" &&
+            ["template", "vector", "dxf", "manual"].includes(r.source),
+        ) ||
+        !["dimension", "scale", "manual"].includes(a.widthSource) ||
+        !["dimension", "scale", "manual"].includes(a.heightSource)
+      )
+        throw new Error("项目包含无效的识别与尺寸记录。");
+    }
     for (const c of [...d.contours, ...d.originalContours])
       if (
         !c ||

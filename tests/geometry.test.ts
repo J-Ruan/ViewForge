@@ -195,3 +195,31 @@ describe("polygon / coordinate validation", () => {
     },
   );
 });
+it("accepts only spatially bounded scan error, preserving actual IoU", () => {
+  const p = example(0);
+  p.views[1].analysis = {
+    method: "raster",
+    status: "ready",
+    rawOutline: [
+      [0, 0],
+      [800, 0],
+      [800, 500],
+      [0, 500],
+    ],
+    objectBox: [0, 0, 800, 500],
+    imageSize: [900, 600],
+    dimensions: [],
+    pixelUncertainty: 3,
+    alternatives: [],
+    notes: [],
+    widthSource: "dimension",
+    heightSource: "dimension",
+  };
+  p.views[1].width = 80.15;
+  const r = reconstruct(api, p);
+  expect(r.baseChecks[1].iou).toBeLessThan(0.999);
+  expect(r.baseChecks[1].withinScanTolerance).toBe(true);
+  expect(r.warnings).toHaveLength(1);
+  p.views[1].width = 90;
+  expect(() => reconstruct(api, p)).toThrow("公共轴尺寸冲突");
+});

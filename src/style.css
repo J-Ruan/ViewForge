@@ -1618,3 +1618,206 @@ i {
 .drawing-tools {
   bottom: 4px;
 }
+/* Recognition-first drawing intake. Editing is available on demand. */
+.recognition-mode .drawing-tools,
+.recognition-mode .contour-list,
+.recognition-mode .calibration,
+.recognition-mode .edit-strip {
+  display: none;
+}
+.recognition-mode[data-status="ready"] > .dimension-row {
+  display: none;
+}
+.recognition-mode .drawing-surface {
+  padding-bottom: 0;
+  aspect-ratio: 1.5 !important;
+}
+.recognition-panel {
+  padding: 12px 11px 7px;
+  border-top: 1px solid #e7edf4;
+}
+.recognition-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #64a58a;
+}
+.recognition-status > div {
+  flex: 1;
+}
+.recognition-status strong {
+  display: block;
+  color: #557363;
+  font-size: 11px;
+  font-weight: 500;
+}
+.recognition-status span {
+  display: block;
+  font-size: 9px;
+  color: #9ba9b6;
+  margin-top: 4px;
+}
+.recognition-status button {
+  color: #8d9eb5;
+  padding: 3px;
+}
+.recognized-size {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 10px;
+  background: #fff9ed;
+  border: 1px solid #eee3c9;
+  border-radius: 6px;
+  color: #b39863;
+}
+.recognized-size.ready {
+  background: #f1f7ff;
+  border-color: #deebfb;
+  color: #7299cd;
+}
+.recognized-size > div > span {
+  font-size: 9px;
+}
+.recognized-size strong {
+  display: block;
+  font-size: 18px;
+  color: #4a6e9e;
+  font-weight: 500;
+  margin-top: 4px;
+}
+.recognized-size strong small {
+  font-size: 11px;
+}
+.dimension-evidence {
+  font-size: 10px;
+  margin-top: 10px;
+  color: #889bb4;
+}
+.dimension-evidence summary {
+  cursor: pointer;
+}
+.dimension-evidence p {
+  font-size: 9px;
+  line-height: 1.7;
+  margin: 9px 0;
+  color: #9aa8b8;
+}
+.dimension-reading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 7px;
+}
+.dimension-reading span {
+  flex: 1;
+  font-size: 9px;
+}
+.dimension-reading input[type="number"] {
+  width: 65px;
+  padding: 4px 5px;
+  text-align: right;
+  font-size: 11px;
+}
+.dimension-reading small {
+  font-size: 9px;
+}
+.recognition-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 7px;
+}
+.recognition-actions button {
+  font-size: 9px;
+  color: #6f91bf;
+  padding: 5px 1px;
+}
+.recognition-notes {
+  font-size: 9px;
+  color: #a0adbd;
+  margin-top: 3px;
+}
+.recognition-notes summary {
+  cursor: pointer;
+}
+.recognition-notes p {
+  line-height: 1.8;
+  margin-top: 5px;
+}
+.recognition-source {
+  padding: 8px;
+  background: #f8fafd;
+}
+.recognition-source svg {
+  width: 100%;
+  max-height: 260px;
+}
+.recognition-source > span {
+  display: block;
+  text-align: center;
+  font-size: 9px;
+  color: #92a4b8;
+  margin: 6px;
+}
+.recognition-loading {
+  padding: 12px;
+  color: #5583be;
+  font-size: 11px;
+  text-align: center;
+  background: #f3f8ff;
+}
+.recognition-review {
+  font-size: 10px;
+  color: #ac9059;
+  padding-top: 8px;
+}
+.recognition-review button {
+  font-size: 10px;
+}
+.scan-notice {
+  padding: 8px 16px;
+  background: #fdf8eb;
+  border-top: 1px solid #eadfbe;
+  color: #a18751;
+  font-size: 10px;
+  line-height: 1.8;
+}
+.recognition-mode .recognition-status span,
+.recognition-mode > .source-preview,
+.recognition-mode .recognition-notes {
+  display: none;
+}
+.recognition-mode .recognition-panel {
+  padding: 8px 10px 6px;
+}
+.recognition-mode .recognized-size {
+  padding: 7px 8px;
+  margin-top: 7px;
+}
+.recognition-mode .recognized-size > div {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+}
+.recognition-mode .recognized-size strong {
+  font-size: 16px;
+  margin-top: 0;
+}
+.recognition-mode .recognized-size > div > span {
+  max-width: 80px;
+  line-height: 1.6;
+}
+.recognition-mode .dimension-evidence {
+  margin-top: 7px;
+}
+.recognition-mode .recognition-actions {
+  margin-top: 4px;
+}
+@media (min-width: 821px) {
+  .recognition-mode .drawing-surface {
+    aspect-ratio: 2.5 !important;
+  }
+}

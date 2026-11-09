@@ -1,14 +1,32 @@
 import DxfParser from "dxf-parser";
 import { SVGLoader } from "three/addons/loaders/SVGLoader.js";
-import type { Contour, Point } from "../types";
-import { normalizeContours, simplify } from "../geometry/polygon";
+import type {
+  Contour,
+  Point,
+  DrawingAnalysis,
+  DimensionReading,
+} from "../types";
+
 import { contour } from "../examples";
+import { recognizeRaster } from "../recognition/client";
+import {
+  vectorResult,
+  vectorDimensions,
+  svgNumericLabels,
+} from "../recognition/vectors";
 export interface Parsed {
+  analysis?: DrawingAnalysis;
+  width?: number;
+  height?: number;
   contours: Contour[];
   warnings: string[];
 }
 const MAX_FILE = 12 * 1024 * 1024;
-export function parseSvg(text: string): Parsed {
+export function parseSvg(
+  text: string,
+  unit: "mm" | "cm" = "mm",
+  fallback = { width: 80, height: 60 },
+): Parsed {
   if (text.length > MAX_FILE) throw new Error("SVG 文件超过 12 MB。");
   const xml = new DOMParser().parseFromString(text, "image/svg+xml");
   if (
@@ -66,12 +84,13 @@ export function parseSvg(text: string): Parsed {
     throw new Error(
       "SVG 中没有可用几何。支持 path、polygon、rect、circle、ellipse、line、polyline。",
     );
-  return {
-    contours: normalizeContours(contours, true),
-    warnings: [
-      "SVG 曲线已离散为折线。请排除尺寸线和背景区域，并检查内孔与闭合状态。",
-    ],
-  };
+  return vectorResult(
+    contours,
+    "svg",
+    unit,
+    fallback,
+    vectorDimensions(contours, svgNumericLabels(xml)),
+  );
 }
 function joinPaths(paths: Point[][]): Point[][] {
   const remaining = paths.map((p) => [...p]),
@@ -98,13 +117,20 @@ function joinPaths(paths: Point[][]): Point[][] {
   }
   return result;
 }
-export function parseDxf(text: string): Parsed {
+export function parseDxf(
+  text: string,
+  unit: "mm" | "cm" = "mm",
+  fallback = { width: 80, height: 60 },
+): Parsed {
   // The parser ignores unknown entities; preflight ensures exclusions are surfaced.
   const pairs = text.replace(/\r/g, "").split("\n"),
     unknown = new Set<string>();
   let section = "",
     nextSection = false;
   const supported = new Set([
+    "TEXT",
+    "MTEXT",
+    "DIMENSION",
     "LINE",
     "LWPOLYLINE",
     "POLYLINE",
@@ -131,6 +157,7 @@ export function parseDxf(text: string): Parsed {
     );
   const dxf = new DxfParser().parseSync(text);
   if (!dxf) throw new Error("DXF 格式无效。");
+  const dimensions: DimensionReading[] = [];
   const paths: Point[][] = [],
     refs: Point[][] = [];
   for (const entity of dxf.entities) {
@@ -155,6 +182,51 @@ export function parseDxf(text: string): Parsed {
       throw new Error(
         "仅支持世界 XY 平面中的基础二维 DXF，请先展平并消除 OCS 变换。",
       );
+    if (["TEXT", "MTEXT"].includes(e.type)) continue;
+    if (e.type === "DIMENSION") {
+      const d =
+        entity as unknown as import("dxf-parser/dist/entities/dimension").IDimensionEntity;
+      const a = d.linearOrAngularPoint1,
+        b = d.linearOrAngularPoint2;
+      if (!a || !b || !["", "<>"].includes(d.text || ""))
+        throw new Error(
+          "DXF 尺寸含覆盖文字或不支持的标注，请先核对真实测量值。",
+        );
+      const baseType = d.dimensionType & 7,
+        angle = (((d.angle || 0) % 180) + 180) % 180;
+      const horizontal =
+          (baseType === 0 && Math.abs(angle) < 1e-6) ||
+          (baseType === 1 && Math.abs(a.y - b.y) < 1e-6),
+        vertical =
+          (baseType === 0 && Math.abs(angle - 90) < 1e-6) ||
+          (baseType === 1 && Math.abs(a.x - b.x) < 1e-6);
+      if (!horizontal && !vertical)
+        throw new Error("当前仅自动读取水平/垂直线性 DXF 尺寸。");
+      const pts = horizontal ? [a.x, b.x] : [-a.y, -b.y],
+        measurement =
+          Number.isFinite(d.actualMeasurement) && d.actualMeasurement > 0
+            ? d.actualMeasurement
+            : Math.abs(pts[1] - pts[0]);
+      dimensions.push({
+        id: `native-${dimensions.length}`,
+        text: String(measurement),
+        value: measurement,
+        unit:
+          dxf.header?.$INSUNITS === 4
+            ? "mm"
+            : dxf.header?.$INSUNITS === 5
+              ? "cm"
+              : undefined,
+        axis: horizontal ? "u" : "v",
+        start: Math.min(...pts),
+        end: Math.max(...pts),
+        labelBox: [d.middleOfText?.x || 0, -(d.middleOfText?.y || 0), 0, 0],
+        score: 1,
+        source: "dxf",
+        accepted: true,
+      });
+      continue;
+    }
     let points: Point[] = [];
     if (e.type === "CIRCLE" || e.type === "ARC") {
       const start = e.type === "CIRCLE" ? 0 : e.startAngle!,
@@ -214,99 +286,7 @@ export function parseDxf(text: string): Parsed {
     }),
   );
   if (!contours.length) throw new Error("DXF 中没有可用二维几何。");
-  return {
-    contours: normalizeContours(contours),
-    warnings: [
-      "DXF 保留原始矢量并离散圆弧；虚线标为参考线。请手动校准实际尺寸（不自动采用 $INSUNITS）。",
-    ],
-  };
-}
-export function traceRaster(
-  rgba: Uint8ClampedArray,
-  w: number,
-  h: number,
-  threshold = 160,
-): Contour[] {
-  const mask = new Uint8Array(w * h);
-  for (let i = 0; i < mask.length; i++) {
-    const a = rgba[i * 4 + 3] / 255,
-      gray =
-        (0.299 * rgba[i * 4] +
-          0.587 * rgba[i * 4 + 1] +
-          0.114 * rgba[i * 4 + 2]) *
-          a +
-        255 * (1 - a);
-    mask[i] = gray < threshold ? 1 : 0;
-  }
-  const clean = mask.slice();
-  for (let y = 1; y < h - 1; y++)
-    for (let x = 1; x < w - 1; x++) {
-      const i = y * w + x;
-      if (
-        mask[i] &&
-        !mask[i - 1] &&
-        !mask[i + 1] &&
-        !mask[i - w] &&
-        !mask[i + w]
-      )
-        clean[i] = 0;
-    }
-  const edges = new Map<number, number[]>();
-  let count = 0;
-  const edge = (a: number, b: number) => {
-    const q = edges.get(a) || [];
-    q.push(b);
-    edges.set(a, q);
-    if (++count > 200000)
-      throw new Error("图片线条过多，请裁剪到单个视图并移除标注。");
-  };
-  const idx = (x: number, y: number) => y * (w + 1) + x;
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++)
-      if (clean[y * w + x]) {
-        if (y === 0 || !clean[(y - 1) * w + x]) edge(idx(x, y), idx(x + 1, y));
-        if (x === w - 1 || !clean[y * w + x + 1])
-          edge(idx(x + 1, y), idx(x + 1, y + 1));
-        if (y === h - 1 || !clean[(y + 1) * w + x])
-          edge(idx(x + 1, y + 1), idx(x, y + 1));
-        if (x === 0 || !clean[y * w + x - 1]) edge(idx(x, y + 1), idx(x, y));
-      }
-  const loops: Point[][] = [];
-  while (edges.size) {
-    const start = edges.keys().next().value!;
-    let key = start;
-    const p: Point[] = [];
-    let closed = false;
-    for (let n = 0; n <= count; n++) {
-      p.push([key % (w + 1), Math.floor(key / (w + 1))]);
-      const list = edges.get(key);
-      if (!list?.length) break;
-      const next = list.pop()!;
-      if (!list.length) edges.delete(key);
-      key = next;
-      if (key === start) {
-        closed = true;
-        break;
-      }
-    }
-    const area =
-      p.reduce(
-        (a, v, i) =>
-          a + v[0] * p[(i + 1) % p.length][1] - p[(i + 1) % p.length][0] * v[1],
-        0,
-      ) / 2;
-    // Keep only outer boundaries of ink components; do not mistake stroke interiors for holes.
-    if (closed && area > 16) loops.push(simplify([...p, p[0]], 1).slice(0, -1));
-  }
-  loops.sort((a, b) => b.length - a.length);
-  if (!loops.length)
-    throw new Error("未找到可靠轮廓。请提高对比度、调整阈值或手动描绘。");
-  return normalizeContours(
-    loops
-      .slice(0, 64)
-      .map((p, i) => ({ ...contour(p, String(i)), selected: false })),
-    true,
-  );
+  return vectorResult(contours, "dxf", unit, fallback, dimensions);
 }
 const dataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
@@ -318,13 +298,20 @@ const dataUrl = (file: File) =>
 export async function importDrawing(
   file: File,
   threshold = 160,
+  options = { unit: "mm" as "mm" | "cm", width: 80, height: 60 },
 ): Promise<Parsed & { sourceData: string }> {
   if (file.size > MAX_FILE) throw new Error("文件不能超过 12 MB。");
   const ext = file.name.split(".").at(-1)?.toLowerCase();
   if (ext === "svg")
-    return { ...parseSvg(await file.text()), sourceData: await dataUrl(file) };
+    return {
+      ...parseSvg(await file.text(), options.unit, options),
+      sourceData: await dataUrl(file),
+    };
   if (ext === "dxf")
-    return { ...parseDxf(await file.text()), sourceData: await file.text() };
+    return {
+      ...parseDxf(await file.text(), options.unit, options),
+      sourceData: await file.text(),
+    };
   if (!["png", "jpg", "jpeg"].includes(ext || ""))
     throw new Error("仅支持 PNG、JPG、SVG、基础二维 DXF。");
   const sourceData = await dataUrl(file),
@@ -332,7 +319,7 @@ export async function importDrawing(
   try {
     if (bitmap.width * bitmap.height > 24_000_000)
       throw new Error("图片超过 2400 万像素，请先缩小。");
-    const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height)),
+    const scale = Math.min(1, 1536 / Math.max(bitmap.width, bitmap.height)),
       w = Math.round(bitmap.width * scale),
       h = Math.round(bitmap.height * scale),
       canvas = document.createElement("canvas");
@@ -342,10 +329,16 @@ export async function importDrawing(
     ctx.drawImage(bitmap, 0, 0, w, h);
     return {
       sourceData,
-      contours: traceRaster(ctx.getImageData(0, 0, w, h).data, w, h, threshold),
-      warnings: [
-        "已执行灰度化、阈值分割、孤立噪点清理、边界追踪与折线简化。图片中的线条语义无法可靠推断，请手动勾选实体区域；内孔必须显式选择或补画。",
-      ],
+      ...(await recognizeRaster(
+        ctx.getImageData(0, 0, w, h).data,
+        w,
+        h,
+        threshold,
+        options.unit,
+        options.width,
+        options.height,
+      )),
+      warnings: [],
     };
   } finally {
     bitmap.close();

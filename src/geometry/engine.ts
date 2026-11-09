@@ -11,6 +11,7 @@ import type {
   ProjectionCheck,
   ViewKind,
 } from "../types";
+import { labels } from "../types";
 import { bounds, calibrated } from "./polygon";
 export const axes: Record<ViewKind, [number, number, number]> = {
   front: [0, 2, 1],
@@ -54,6 +55,10 @@ export function reconstruct(
       throw new Error("请选择两个不同的标准正投影视图。");
     if (project.views.some((d) => !d.confirmed))
       throw new Error("请检查两个视图的轮廓和实际尺寸，并确认校准。");
+    if (project.views.some((d) => d.analysis?.dimensionConflict))
+      throw new Error(
+        "识别尺寸存在冲突或无效读数，请修正尺寸或取消采用该项后重新确认。",
+      );
     const sections = project.views.map((d) =>
       keep(
         new api.CrossSection(
@@ -66,6 +71,23 @@ export function reconstruct(
         ),
       ),
     );
+    const tolerances = project.views.map((d) =>
+      d.analysis?.method === "raster"
+        ? Math.min(
+            d.width / d.analysis.objectBox[2],
+            d.height / d.analysis.objectBox[3],
+          ) *
+          d.analysis.pixelUncertainty *
+          (project.unit === "cm" ? 10 : 1)
+        : 0,
+    );
+    const tolerance = Math.min(
+      Math.max(...tolerances),
+      Math.min(...project.views.flatMap((d) => [d.width, d.height])) *
+        (project.unit === "cm" ? 10 : 1) *
+        0.01,
+    );
+    const sectionBounds = sections.map((s) => bounds(s.toPolygons()));
     const range = [
       [-Infinity, Infinity],
       [-Infinity, Infinity],
@@ -81,6 +103,20 @@ export function reconstruct(
     if (range.some((r) => !r.every(Number.isFinite) || r[1] - r[0] < 1e-6))
       throw new Error(
         "两个视图的公共坐标轴不重叠，交集为空。请检查尺寸与对齐偏移。",
+      );
+    const shared = axes[project.views[0].kind]
+      .slice(0, 2)
+      .find((a) => axes[project.views[1].kind].slice(0, 2).includes(a))!;
+    const coords = project.views.map((d, i) => {
+      const k = axes[d.kind].indexOf(shared);
+      return [sectionBounds[i].min[k], sectionBounds[i].max[k]];
+    });
+    if (
+      Math.abs(coords[0][0] - coords[1][0]) > tolerance + 1e-6 ||
+      Math.abs(coords[0][1] - coords[1][1]) > tolerance + 1e-6
+    )
+      throw new Error(
+        `公共轴尺寸冲突：${labels[project.views[0].kind]}与${labels[project.views[1].kind]}的 ${["X（宽）", "Y（深）", "Z（高）"][shared]} 范围分别为 ${coords[0].map((x) => +x.toFixed(3)).join("–")} mm、${coords[1].map((x) => +x.toFixed(3)).join("–")} mm。请核对识别尺寸与对齐偏移；若某张未读出尺寸，请先补充实际尺寸。`,
       );
     const extrusions = sections.map((s, i) => {
       const kind = project.views[i].kind,
@@ -99,9 +135,21 @@ export function reconstruct(
           union = keep(sections[i].add(projected));
         const missing = keep(sections[i].subtract(projected)),
           extra = keep(projected.subtract(sections[i]));
+        const iou = intersection.area() / union.area();
+        let withinScanTolerance = false;
+        if (iou < 0.999 && tolerance > 0) {
+          const expandedModel = keep(projected.offset(tolerance, "Miter")),
+            expandedInput = keep(sections[i].offset(tolerance, "Miter")),
+            farMissing = keep(sections[i].subtract(expandedModel)),
+            farExtra = keep(projected.subtract(expandedInput));
+          withinScanTolerance =
+            farMissing.area() + farExtra.area() <
+            Math.max(1e-7, sections[i].area() * 1e-8);
+        }
         return {
           kind: d.kind,
-          iou: intersection.area() / union.area(),
+          iou,
+          withinScanTolerance,
           input: sections[i].toPolygons(),
           projected: projected.toPolygons(),
           missing: missing.toPolygons(),
@@ -109,9 +157,9 @@ export function reconstruct(
         };
       });
     const baseChecks = check(model);
-    if (baseChecks.some((c) => c.iou < 0.999))
+    if (baseChecks.some((c) => c.iou < 0.999 && !c.withinScanTolerance))
       throw new Error(
-        `视图约束冲突：基础交集无法完整还原输入轮廓（最低 IoU ${(Math.min(...baseChecks.map((c) => c.iou)) * 100).toFixed(2)}%）。请重新校准或调整区域。`,
+        `视图轮廓冲突：尺寸范围虽有重叠，但部分截面无法同时满足两张视图。请先核对视图类型、镜像方向及是否选中了零件。当前偏差已超过可解释的扫描误差范围，不能直接生成。`,
       );
     if (project.features.length > 64)
       throw new Error("最多支持 64 个切除特征。");
@@ -140,6 +188,11 @@ export function reconstruct(
       checks,
       baseChecks,
       triangles: mesh.numTri,
+      warnings: baseChecks.some((c) => c.withinScanTolerance)
+        ? [
+            `存在轻微扫描差异，偏差位于 ${tolerance.toFixed(3)} mm 像素边界容差内。已保留实际 IoU，请在投影叠加中核对。`,
+          ]
+        : [],
     };
   } finally {
     for (let i = owned.length - 1; i >= 0; i--) owned[i].delete();
