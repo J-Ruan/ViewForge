@@ -20,3 +20,10 @@ GitHub 发布状态应以实际推送和 Actions/Pages 运行结果为准。本�
 代码已推送至 `J-Ruan/ViewForge` 的 main 分支。首次 Actions 在 `ubuntu-latest` 的 Playwright 系统依赖安装步骤失败；固定到受支持的 Ubuntu 24.04 后，[第二次运行](https://github.com/J-Ruan/ViewForge/actions/runs/42565375087) 的 **validate 作业成功**，完成类型检查、26 项单元/几何测试、8 项生产子路径 E2E 和构建，上传 `browser-results` 与 `github-pages` 两个产物。
 
 **deploy 作业失败，网站尚未发布**：GitHub Pages 返回 `Failed to create deployment (status: 404)`，明确提示未启用 Pages。需要仓库管理员在 [Settings → Pages](https://github.com/J-Ruan/ViewForge/settings/pages) 将 Source 设为 **GitHub Actions**，然后重跑工作流。当前环境的 Git 推送权限正常，但 GitHub API 域名被出站策略拒绝，且未提供共享浏览器控制工具，因此无法代为完成该仓库管理操作。不能将本地或 CI 构建通过写成线上发布成功。
+
+
+## Pages 发布成功（2026-11-09）
+
+用户启用 GitHub Actions 作为 Pages Source 后，以提交 `8617254` 重新触发[部署运行 42566543737](https://github.com/J-Ruan/ViewForge/actions/runs/42566543737)。GitHub 显示整体 **Success**：validate 作业 1m 20s，deploy 作业 9s，发布地址为 **https://j-ruan.github.io/ViewForge/**。此前“未发布”的状态已解除。
+
+本次部署前的生产构建、26 项单元/几何测试与 8 项端到端测试均由 CI 验证通过。当前云环境的出站策略仍拒绝 Pages 域名，因此未声称已在此环境完成发布后线上浏览器复验；发布成功依据为 GitHub deploy-pages 的成功结果和返回的站点 URL。

@@ -1,5 +1,7 @@
 # ViewForge · 视图工坊
 
+[在线使用](https://j-ruan.github.io/ViewForge/) · [部署工作流](https://github.com/J-Ruan/ViewForge/actions)
+
 在浏览器本地，将两个标准二维正投影视图转换为三维**候选实体**。纯计算几何，无 AI、无账户、无后端、无图纸上传服务。React / TypeScript / Three.js / Manifold WebAssembly。
 
 > 两视图通常不能唯一确定三维形状。重投影轮廓匹配只说明满足这些轮廓约束，不证明内部结构正确。
