@@ -233,6 +233,14 @@ test("manual contour drawing and vertex dragging change actual solid volume", as
   page,
   isMobile,
 }) => {
+  await page.addInitScript(() => {
+    const read = File.prototype.text;
+    File.prototype.text = async function () {
+      if (this.name === "top.svg")
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      return read.call(this);
+    };
+  });
   await page.goto("./");
   await page.getByRole("button", { name: "新建", exact: true }).click();
   await page.getByRole("button", { name: "创建空白项目" }).click();
@@ -267,6 +275,7 @@ test("manual contour drawing and vertex dragging change actual solid volume", as
     mimeType: "image/svg+xml",
     buffer: svg(80, 50),
   });
+  await expect(page.getByLabel("视图 2 宽度", { exact: true })).toBeDisabled();
   await page.getByLabel("视图 2 宽度", { exact: true }).fill("80");
   await page.getByLabel("视图 2 高度", { exact: true }).fill("50");
   await page

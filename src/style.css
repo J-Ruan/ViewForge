@@ -327,7 +327,7 @@ i {
   overflow: hidden;
   margin-bottom: 15px;
 }
-.drawing-card > header {
+.drawing-card header {
   height: 42px;
   display: flex;
   align-items: center;
@@ -335,7 +335,7 @@ i {
   padding: 0 10px;
   border-bottom: 1px solid #e8edf4;
 }
-.drawing-card > header > div {
+.drawing-card header > div {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -1625,7 +1625,7 @@ i {
 .recognition-mode .edit-strip {
   display: none;
 }
-.recognition-mode[data-status="ready"] > .dimension-row {
+.recognition-mode[data-status="ready"] .dimension-row {
   display: none;
 }
 .recognition-mode .drawing-surface {
@@ -1784,7 +1784,7 @@ i {
   line-height: 1.8;
 }
 .recognition-mode .recognition-status span,
-.recognition-mode > .source-preview,
+.recognition-mode .source-preview,
 .recognition-mode .recognition-notes {
   display: none;
 }
@@ -1820,4 +1820,16 @@ i {
   .recognition-mode .drawing-surface {
     aspect-ratio: 2.5 !important;
   }
+}
+
+.drawing-contents {
+  display: contents;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.drawing-contents[disabled] .drawing-surface {
+  pointer-events: none;
+  opacity: 0.65;
 }
